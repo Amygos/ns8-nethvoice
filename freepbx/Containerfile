@@ -161,7 +161,7 @@ RUN cd /usr/src/asterisk && \
 	wget -nv http://asterisk.hosting.lv/bin/codec_g729-ast180-gcc4-glibc-x86_64-pentium4.so -O ${BUILDROOT}${LIBDIR}/asterisk/modules/codec_g729.so
 
 
-FROM docker.io/library/php:7.4-apache
+FROM docker.io/library/php:8.3-apache
 WORKDIR /var/lib/asterisk
 ARG DEBIAN_FRONTEND=noninteractive
 RUN groupadd -g 991 -r asterisk && \
