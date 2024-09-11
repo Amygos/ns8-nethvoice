@@ -5,7 +5,9 @@
         ":disableDependencyDashboard"
     ],
     "includePaths": [
-        "build-images.sh"
+        "build-images.sh",
+	"freepbx/Containerfile" ,
+	"tancredi/Containerfile"
     ],
     "regexManagers": [
         {
@@ -17,6 +19,16 @@
             ],
             "depNameTemplate": "ghcr.io/nethesis/nethvoice-cti",
             "datasourceTemplate": "docker"
-        }
+        },
+	    {
+      "fileMatch": ["tancredi/Containerfile"],
+      "matchStrings": [
+        "BRANCH=(?<currentValue>\\d+\\.\\d+\\.\\d+)"
+      ],
+      "datasourceTemplate": "github-releases",
+      "packageNameTemplate": "nethesis/tancredi",
+      "versioningTemplate": "semver",
+      "extractVersionTemplate": "{{version}}"
+    }
     ]
 }
