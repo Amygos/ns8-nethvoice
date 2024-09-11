@@ -17,7 +17,7 @@ jobs:
     uses: NethServer/ns8-github-actions/.github/workflows/module-info.yml@main
   run_tests:
     needs: module
-    uses: NethServer/ns8-github-actions/.github/workflows/test-on-digitalocean-infra.yml@main
+    uses: NethServer/ns8-github-actions/.github/workflows/test-on-digitalocean-infra.yml@tests_checks
     with:
       args: "ghcr.io/${{needs.module.outputs.owner}}/${{needs.module.outputs.name}}:${{needs.module.outputs.tag}}"
       repo_ref: ${{needs.module.outputs.sha}}
