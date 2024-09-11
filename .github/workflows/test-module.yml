@@ -24,3 +24,4 @@ jobs:
       debug_shell: ${{ github.event.inputs.debug_shell == 'true' || false }}
     secrets:
       do_token: ${{ secrets.do_token }}
+      gh_status_pat: ${{ secrets.gh_status_pat }}
