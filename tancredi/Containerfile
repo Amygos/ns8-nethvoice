@@ -1,5 +1,5 @@
 
-FROM docker.io/library/php:7-apache
+FROM docker.io/library/php:8-apache
 
 COPY etc /etc
 COPY usr /usr
