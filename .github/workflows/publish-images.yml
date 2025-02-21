@@ -17,9 +17,9 @@ jobs:
   module:
     needs: publish-images
     uses: NethServer/ns8-github-actions/.github/workflows/module-info.yml@module_info
-  scan:
+  trivy:
     needs: module
     if: ${{ needs.module.outputs.release == 'stable' || needs.module.outputs.release == 'latest' || github.event_name == 'workflow_dispatch' }}
-    uses: NethServer/ns8-github-actions/.github/workflows/scan-with-syft-and-grype.yml@syft
+    uses: Amygos/ns8-github-actions/.github/workflows/scan-with-trivy.yml@trivy
     with:
       images: ${{ needs.module.outputs.images }}
