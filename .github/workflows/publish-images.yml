@@ -6,6 +6,9 @@ on:
 
 permissions:
   packages: write
+  actions: read
+  contents: write
+  security-events: write
 
 jobs:
   publish-images:
