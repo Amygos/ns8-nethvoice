@@ -4,8 +4,8 @@
     "local>NethServer/.github:ns8"
   ],
   "packageRules": [{
-    "matchFileNames": ["freepbx/wizard-ui/**"],
-    "enabled": false
+    "enabled": false,
+    "matchFileNames": ["freepbx/wizard-ui/**"]
   }],
   "vulnerabilityAlerts": {
     "enabled": true
