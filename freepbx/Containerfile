@@ -159,7 +159,7 @@ RUN cd /usr/src/asterisk && \
 	cp *.so ${BUILDROOT}${LIBDIR}/asterisk/modules/ && \
 	cp codec_opus_config-en_US.xml ${BUILDROOT}${DATADIR}/asterisk/documentation/thirdparty/
 
-FROM docker.io/library/php:7.4-apache
+FROM docker.io/library/php:8.4-apache
 WORKDIR /var/lib/asterisk
 ARG DEBIAN_FRONTEND=noninteractive
 RUN groupadd -g 991 -r asterisk && \
