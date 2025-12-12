@@ -10,10 +10,16 @@ repobase="${REPOBASE:-ghcr.io/nethesis}"
 # Configure the image name
 reponame="nethvoice"
 
+# Configure remote cache repository
+cache_repository="${repobase}/${reponame}-build-cache"
+# Configure remote cache options
+REMOTE_CACHE_OPTIONS="--cache-from ${cache_repository} --cache-to ${cache_repository}"
+
 # Build NS8 Module image
 buildah build \
 	--force-rm \
 	--layers \
+	${CI:+$REMOTE_CACHE_OPTIONS} \
 	--jobs "$(nproc)" \
 	--build-arg REPOBASE="${repobase}" \
 	--build-arg IMAGETAG="${IMAGETAG:-latest}" \
@@ -46,7 +52,8 @@ images+=("${repobase}/${reponame}")
 echo "[*] Build FreePBX container"
 reponame="nethvoice-freepbx"
 pushd freepbx
-buildah build --force-rm --no-cache --jobs "$(nproc)" \
+buildah build --force-rm --layers --jobs "$(nproc)" \
+	${CI:+$REMOTE_CACHE_OPTIONS} \
 	--tag "${repobase}/${reponame}" \
 	--tag "${repobase}/${reponame}:${IMAGETAG:-latest}"
 popd
@@ -62,6 +69,7 @@ echo "[*] Build Tancredi container"
 reponame="nethvoice-tancredi"
 pushd tancredi
 buildah build --force-rm --layers --jobs "$(nproc)" \
+	${CI:+$REMOTE_CACHE_OPTIONS} \
 	--tag "${repobase}/${reponame}" \
 	--tag "${repobase}/${reponame}:${IMAGETAG:-latest}"
 popd
@@ -76,6 +84,7 @@ echo "[*] Build nethcti container"
 reponame="nethvoice-cti-server"
 pushd nethcti-server
 buildah build --force-rm --layers --jobs "$(nproc)" --target production \
+	${CI:+$REMOTE_CACHE_OPTIONS} \
 	--tag "${repobase}/${reponame}" \
 	--tag "${repobase}/${reponame}:${IMAGETAG:-latest}"
 popd
@@ -115,6 +124,7 @@ echo "[*] Build Janus Gateway container"
 reponame="nethvoice-janus"
 pushd janus
 buildah build --force-rm --layers --jobs "$(nproc)" \
+	${CI:+$REMOTE_CACHE_OPTIONS} \
 	--tag "${repobase}/${reponame}" \
 	--tag "${repobase}/${reponame}:${IMAGETAG:-latest}"
 popd
@@ -130,6 +140,7 @@ echo "[*] Build Phonebook container"
 reponame="nethvoice-phonebook"
 pushd phonebook
 buildah build --force-rm --layers --jobs "$(nproc)" \
+	${CI:+$REMOTE_CACHE_OPTIONS} \
 	--tag "${repobase}/${reponame}" \
 	--tag "${repobase}/${reponame}:${IMAGETAG:-latest}"
 popd
@@ -144,11 +155,13 @@ images+=("${repobase}/${reponame}")
 pushd reports
 reponame="nethvoice-reports-api"
 buildah build --force-rm --layers --jobs "$(nproc)" --target api-production \
+	${CI:+$REMOTE_CACHE_OPTIONS} \
 	--tag "${repobase}"/"${reponame}" \
 	--tag "${repobase}"/"${reponame}:${IMAGETAG:-latest}"
 images+=("${repobase}/${reponame}")
 reponame="nethvoice-reports-ui"
 buildah build --force-rm --layers --jobs "$(nproc)" --target ui-production \
+	${CI:+$REMOTE_CACHE_OPTIONS} \
 	--tag "${repobase}"/"${reponame}" \
 	--tag "${repobase}"/"${reponame}:${IMAGETAG:-latest}"
 images+=("${repobase}/${reponame}")
@@ -161,6 +174,7 @@ echo "[*] Build SFTP Recordings container"
 reponame="nethvoice-sftp"
 pushd sftp
 buildah build --force-rm --layers --jobs "$(nproc)" \
+	${CI:+$REMOTE_CACHE_OPTIONS} \
 	--tag "${repobase}/${reponame}" \
 	--tag "${repobase}/${reponame}:${IMAGETAG:-latest}"
 popd
