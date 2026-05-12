@@ -59,6 +59,10 @@ test('fails when testing was applied and verify is missing', async () => {
       body: pullRequest({ labels: [] }),
     },
     {
+      key: 'GET /repos/Amygos/ns8-nethvoice/branches/main',
+      body: branch(),
+    },
+    {
       key: 'GET /repos/Amygos/ns8-nethvoice/compare/base...head',
       body: { status: 'ahead' },
     },
@@ -84,6 +88,10 @@ test('passes when testing was applied and verify is present', async () => {
     {
       key: 'GET /repos/Amygos/ns8-nethvoice/pulls/8',
       body: pullRequest({ labels: [{ name: 'verify' }] }),
+    },
+    {
+      key: 'GET /repos/Amygos/ns8-nethvoice/branches/main',
+      body: branch(),
     },
     {
       key: 'GET /repos/Amygos/ns8-nethvoice/compare/base...head',
@@ -114,6 +122,10 @@ test('requests a merge update when the PR branch is behind', async () => {
         body: pullRequest({ labels: [] }),
       },
       {
+        key: 'GET /repos/Amygos/ns8-nethvoice/branches/main',
+        body: branch(),
+      },
+      {
         key: 'GET /repos/Amygos/ns8-nethvoice/compare/base...head',
         body: { status: 'behind' },
       },
@@ -134,7 +146,7 @@ test('requests a merge update when the PR branch is behind', async () => {
   });
 
   assert.deepEqual(result, { branchUpdated: true, labelGateChecked: false });
-  assert.deepEqual(requests[2].body, { expected_head_sha: 'head' });
+  assert.deepEqual(requests[3].body, { expected_head_sha: 'head' });
 });
 
 test('fails instead of updating when strategy is none', async () => {
@@ -142,6 +154,10 @@ test('fails instead of updating when strategy is none', async () => {
     {
       key: 'GET /repos/Amygos/ns8-nethvoice/pulls/8',
       body: pullRequest({ labels: [] }),
+    },
+    {
+      key: 'GET /repos/Amygos/ns8-nethvoice/branches/main',
+      body: branch(),
     },
     {
       key: 'GET /repos/Amygos/ns8-nethvoice/compare/base...head',
@@ -160,12 +176,55 @@ test('fails instead of updating when strategy is none', async () => {
   );
 });
 
-function pullRequest({ labels }) {
+test('compares against the current base branch SHA', async () => {
+  const requests = [];
+  const { fetchImpl } = mockFetch(
+    [
+      {
+        key: 'GET /repos/Amygos/ns8-nethvoice/pulls/8',
+        body: pullRequest({ baseSha: 'stale-base', labels: [] }),
+      },
+      {
+        key: 'GET /repos/Amygos/ns8-nethvoice/branches/main',
+        body: branch({ sha: 'live-base' }),
+      },
+      {
+        key: 'GET /repos/Amygos/ns8-nethvoice/compare/live-base...head',
+        body: { status: 'ahead' },
+      },
+      {
+        key: 'GET /repos/Amygos/ns8-nethvoice/issues/8/events?per_page=100&page=1',
+        body: [],
+      },
+    ],
+    requests
+  );
+
+  await runPrGate({
+    env: baseEnv,
+    fetchImpl,
+    readFile: eventFile(8),
+    log: silentLog(),
+  });
+
+  assert.equal(
+    requests.some((request) =>
+      request.key.includes('/compare/stale-base...head')
+    ),
+    false
+  );
+});
+
+function pullRequest({ baseSha = 'base', labels }) {
   return {
-    base: { ref: 'main', sha: 'base' },
+    base: { ref: 'main', sha: baseSha },
     head: { sha: 'head' },
     labels,
   };
+}
+
+function branch({ sha = 'base' } = {}) {
+  return { commit: { sha } };
 }
 
 function eventFile(number) {
