@@ -11,7 +11,7 @@ on:
       - ready_for_review
 
 permissions:
-  contents: read
+  contents: write
   issues: read
   pull-requests: write
 
@@ -27,7 +27,7 @@ jobs:
       - name: Checkout trusted base branch
         uses: actions/checkout@v6
         with:
-          ref: ${{ github.event.pull_request.base.sha }}
+          ref: ${{ github.event.pull_request.base.ref }}
           persist-credentials: false
 
       - name: Run PR merge gate
