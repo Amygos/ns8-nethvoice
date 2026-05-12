@@ -104,6 +104,13 @@ class GitHubApi {
     return this.request('GET', `${this.repoPath()}/pulls/${number}`);
   }
 
+  async getBranch(branchName) {
+    return this.request(
+      'GET',
+      `${this.repoPath()}/branches/${encodeURIComponent(branchName)}`
+    );
+  }
+
   async compare(baseSha, headSha) {
     return this.request(
       'GET',
@@ -188,8 +195,9 @@ export async function runPrGate({
   });
 
   const pullRequest = await github.getPullRequest(pullRequestNumber);
+  const baseBranch = await github.getBranch(pullRequest.base.ref);
   const comparison = await github.compare(
-    pullRequest.base.sha,
+    baseBranch.commit.sha,
     pullRequest.head.sha
   );
 
