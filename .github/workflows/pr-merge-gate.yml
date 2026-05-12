@@ -1,0 +1,37 @@
+name: PR merge gate
+
+on:
+  pull_request_target:
+    types:
+      - opened
+      - reopened
+      - synchronize
+      - labeled
+      - unlabeled
+      - ready_for_review
+
+permissions:
+  contents: read
+  issues: read
+  pull-requests: write
+
+env:
+  PR_GATE_UPDATE_STRATEGY: merge
+
+jobs:
+  pr-merge-gate:
+    name: PR merge gate
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout trusted base branch
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          persist-credentials: false
+
+      - name: Run PR merge gate
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          UPDATE_STRATEGY: ${{ env.PR_GATE_UPDATE_STRATEGY }}
+        run: node .github/scripts/pr-gate.mjs
