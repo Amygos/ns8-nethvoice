@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 const SUPPORTED_UPDATE_STRATEGIES = new Set(['merge', 'none']);
 const CURRENT_STATUSES = new Set(['ahead', 'identical']);
 const UPDATE_STATUSES = new Set(['behind', 'diverged']);
+const STATUS_CONTEXT = 'PR merge gate';
 
 export function normalizeUpdateStrategy(value) {
   const strategy = (value || 'merge').trim().toLowerCase();
@@ -125,6 +126,18 @@ class GitHubApi {
     });
   }
 
+  async createCommitStatus(sha, { description, state, targetUrl }) {
+    return this.request('POST', `${this.repoPath()}/statuses/${sha}`, {
+      body: {
+        context: STATUS_CONTEXT,
+        description: statusDescription(description),
+        state,
+        target_url: targetUrl,
+      },
+      expectedStatuses: [201],
+    });
+  }
+
   async listIssueEvents(number) {
     const events = [];
 
@@ -174,11 +187,76 @@ function requireEnv(env, name) {
   return env[name];
 }
 
+function delay(ms) {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
+function statusDescription(description) {
+  if (description.length <= 140) {
+    return description;
+  }
+
+  return `${description.slice(0, 137)}...`;
+}
+
+function workflowRunUrl(env) {
+  if (!env.GITHUB_SERVER_URL || !env.GITHUB_REPOSITORY || !env.GITHUB_RUN_ID) {
+    return undefined;
+  }
+
+  return `${env.GITHUB_SERVER_URL}/${env.GITHUB_REPOSITORY}/actions/runs/${env.GITHUB_RUN_ID}`;
+}
+
+async function waitForBranchUpdate(
+  github,
+  pullRequestNumber,
+  previousHeadSha,
+  { log, sleep }
+) {
+  for (let attempt = 1; attempt <= 24; attempt += 1) {
+    const pullRequest = await github.getPullRequest(pullRequestNumber);
+
+    if (pullRequest.head.sha !== previousHeadSha) {
+      return pullRequest;
+    }
+
+    log.log(
+      `Waiting for PR #${pullRequestNumber} branch update to complete, attempt ${attempt}.`
+    );
+    await sleep(5000);
+  }
+
+  throw new Error(
+    `Timed out waiting for PR #${pullRequestNumber} branch update to complete.`
+  );
+}
+
+async function checkLabelGate(github, pullRequestNumber, labels, log) {
+  const events = await github.listIssueEvents(pullRequestNumber);
+  const testingWasApplied = wasLabelEverApplied(events, 'testing');
+  const verifyIsPresent = hasCurrentLabel(labels || [], 'verify');
+
+  if (testingWasApplied && !verifyIsPresent) {
+    throw new Error(
+      'The "testing" label was applied to this PR before, so the PR must currently have the "verify" label.'
+    );
+  }
+
+  log.log(
+    testingWasApplied
+      ? 'Label gate passed: "testing" was applied before and "verify" is present.'
+      : 'Label gate passed: "testing" was never applied.'
+  );
+}
+
 export async function runPrGate({
   env = process.env,
   fetchImpl = globalThis.fetch,
   readFile = fs.readFile,
   log = console,
+  sleep = delay,
 } = {}) {
   const token = requireEnv(env, 'GITHUB_TOKEN');
   const eventPath = requireEnv(env, 'GITHUB_EVENT_PATH');
@@ -217,30 +295,58 @@ export async function runPrGate({
     );
     await github.updateBranch(pullRequestNumber, pullRequest.head.sha);
     log.log(
-      `Requested branch update for PR #${pullRequestNumber}. The synchronize run will validate the updated head.`
+      `Requested branch update for PR #${pullRequestNumber}. Waiting to validate the updated head.`
     );
-    return { branchUpdated: true, labelGateChecked: false };
+    const updatedPullRequest = await waitForBranchUpdate(
+      github,
+      pullRequestNumber,
+      pullRequest.head.sha,
+      { log, sleep }
+    );
+
+    try {
+      const updatedBaseBranch = await github.getBranch(
+        updatedPullRequest.base.ref
+      );
+      const updatedComparison = await github.compare(
+        updatedBaseBranch.commit.sha,
+        updatedPullRequest.head.sha
+      );
+
+      if (!isHeadCurrent(updatedComparison.status)) {
+        throw new Error(
+          `PR #${pullRequestNumber} is still ${updatedComparison.status} after the branch update.`
+        );
+      }
+
+      await checkLabelGate(
+        github,
+        pullRequestNumber,
+        updatedPullRequest.labels,
+        log
+      );
+      await github.createCommitStatus(updatedPullRequest.head.sha, {
+        description: 'PR merge gate passed after updating the branch.',
+        state: 'success',
+        targetUrl: workflowRunUrl(env),
+      });
+    } catch (error) {
+      await github.createCommitStatus(updatedPullRequest.head.sha, {
+        description: error.message,
+        state: 'failure',
+        targetUrl: workflowRunUrl(env),
+      });
+      throw error;
+    }
+
+    return { branchUpdated: true, labelGateChecked: true };
   } else {
     throw new Error(
       `Unexpected compare status "${comparison.status}" for PR #${pullRequestNumber}.`
     );
   }
 
-  const events = await github.listIssueEvents(pullRequestNumber);
-  const testingWasApplied = wasLabelEverApplied(events, 'testing');
-  const verifyIsPresent = hasCurrentLabel(pullRequest.labels || [], 'verify');
-
-  if (testingWasApplied && !verifyIsPresent) {
-    throw new Error(
-      'The "testing" label was applied to this PR before, so the PR must currently have the "verify" label.'
-    );
-  }
-
-  log.log(
-    testingWasApplied
-      ? 'Label gate passed: "testing" was applied before and "verify" is present.'
-      : 'Label gate passed: "testing" was never applied.'
-  );
+  await checkLabelGate(github, pullRequestNumber, pullRequest.labels, log);
 
   return { branchUpdated: false, labelGateChecked: true };
 }

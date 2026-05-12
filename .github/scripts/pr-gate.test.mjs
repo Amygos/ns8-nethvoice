@@ -134,6 +134,27 @@ test('requests a merge update when the PR branch is behind', async () => {
         status: 202,
         body: { message: 'Updating pull request branch.' },
       },
+      {
+        key: 'GET /repos/Amygos/ns8-nethvoice/pulls/8',
+        body: pullRequest({ headSha: 'updated-head', labels: [] }),
+      },
+      {
+        key: 'GET /repos/Amygos/ns8-nethvoice/branches/main',
+        body: branch(),
+      },
+      {
+        key: 'GET /repos/Amygos/ns8-nethvoice/compare/base...updated-head',
+        body: { status: 'ahead' },
+      },
+      {
+        key: 'GET /repos/Amygos/ns8-nethvoice/issues/8/events?per_page=100&page=1',
+        body: [],
+      },
+      {
+        key: 'POST /repos/Amygos/ns8-nethvoice/statuses/updated-head',
+        status: 201,
+        body: {},
+      },
     ],
     requests
   );
@@ -143,10 +164,16 @@ test('requests a merge update when the PR branch is behind', async () => {
     fetchImpl,
     readFile: eventFile(8),
     log: silentLog(),
+    sleep: async () => {},
   });
 
-  assert.deepEqual(result, { branchUpdated: true, labelGateChecked: false });
+  assert.deepEqual(result, { branchUpdated: true, labelGateChecked: true });
   assert.deepEqual(requests[3].body, { expected_head_sha: 'head' });
+  assert.deepEqual(requests[8].body, {
+    context: 'PR merge gate',
+    description: 'PR merge gate passed after updating the branch.',
+    state: 'success',
+  });
 });
 
 test('fails instead of updating when strategy is none', async () => {
@@ -215,10 +242,10 @@ test('compares against the current base branch SHA', async () => {
   );
 });
 
-function pullRequest({ baseSha = 'base', labels }) {
+function pullRequest({ baseSha = 'base', headSha = 'head', labels }) {
   return {
     base: { ref: 'main', sha: baseSha },
-    head: { sha: 'head' },
+    head: { sha: headSha },
     labels,
   };
 }
