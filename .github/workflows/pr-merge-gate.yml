@@ -11,28 +11,50 @@ on:
       - ready_for_review
 
 permissions:
-  contents: write
   issues: read
-  pull-requests: write
-  statuses: write
-
-env:
-  PR_GATE_UPDATE_STRATEGY: merge
+  pull-requests: read
 
 jobs:
   pr-merge-gate:
     name: PR merge gate
     runs-on: ubuntu-latest
+    concurrency:
+      group: pr-merge-gate-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
 
     steps:
-      - name: Checkout trusted base branch
-        uses: actions/checkout@v6
-        with:
-          ref: ${{ github.event.pull_request.base.ref }}
-          persist-credentials: false
-
-      - name: Run PR merge gate
+      - name: Check testing and verify labels
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          UPDATE_STRATEGY: ${{ env.PR_GATE_UPDATE_STRATEGY }}
-        run: node .github/scripts/pr-gate.mjs
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          testing_applied="$(
+            gh api \
+              --paginate \
+              --slurp \
+              "repos/$GH_REPO/issues/$PR_NUMBER/events" \
+              --jq 'any(.[][]; .event == "labeled" and .label.name == "testing")'
+          )"
+
+          if [[ "$testing_applied" != "true" ]]; then
+            echo 'Label gate passed: "testing" was never applied.'
+            exit 0
+          fi
+
+          verify_present="$(
+            gh pr view "$PR_NUMBER" \
+              --repo "$GH_REPO" \
+              --json labels \
+              --jq 'any(.labels[]?; .name == "verify")'
+          )"
+
+          if [[ "$verify_present" != "true" ]]; then
+            echo 'The "testing" label was applied to this PR before, so the PR must currently have the "verify" label.' >&2
+            exit 1
+          fi
+
+          echo 'Label gate passed: "testing" was applied before and "verify" is present.'
